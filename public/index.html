@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Is At Work?</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="status-card">
+            <h1>Work Status</h1>
+            <div id="statusContainer" class="loading">
+                <p>Loading...</p>
+            </div>
+            <div id="details" class="details" style="display: none;">
+                <p id="lastUpdated"></p>
+                <p id="username"></p>
+            </div>
+            <div class="actions">
+                <a href="login.html" class="btn btn-primary">Login</a>
+                <a href="dashboard.html" class="btn btn-secondary">Dashboard</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        // Load status on page load
+        loadStatus();
+
+        // Refresh status every 10 seconds
+        setInterval(loadStatus, 10000);
+
+        function loadStatus() {
+            fetch('/api/status')
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('statusContainer');
+                    const details = document.getElementById('details');
+                    const lastUpdated = document.getElementById('lastUpdated');
+                    const username = document.getElementById('username');
+
+                    if (data.isAtWork && !data.onBreak) {
+                        container.className = 'status at-work';
+                        container.innerHTML = '<div class="status-badge at-work">✓ AT WORK</div>';
+                    } else if (data.onBreak) {
+                        container.className = 'status on-break';
+                        container.innerHTML = '<div class="status-badge on-break">☕ ON BREAK</div>';
+                    } else {
+                        container.className = 'status not-at-work';
+                        container.innerHTML = '<div class="status-badge not-at-work">✗ NOT AT WORK</div>';
+                    }
+
+                    lastUpdated.textContent = `Last updated: ${new Date(data.updatedAt).toLocaleString()}`;
+                    username.textContent = `User: ${data.username}`;
+                    details.style.display = 'block';
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('statusContainer').innerHTML = '<p class="error">Error loading status</p>';
+                });
+        }
+    </script>
+</body>
+</html>
