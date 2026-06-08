@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Is At Work?</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="dashboard-card">
+            <h1>Dashboard</h1>
+            
+            <!-- Work Status Section -->
+            <div class="section">
+                <h2>Current Status</h2>
+                <div class="status-controls">
+                    <button id="atWorkBtn" class="btn btn-success">Mark At Work</button>
+                    <button id="notAtWorkBtn" class="btn btn-danger">Mark Not At Work</button>
+                </div>
+                <p id="statusMessage" style="margin-top: 10px; color: #666;"></p>
+            </div>
+
+            <!-- Break Management Section -->
+            <div class="section">
+                <h2>Breaks</h2>
+                <div class="form-group">
+                    <label for="breakName">Break Name</label>
+                    <input type="text" id="breakName" placeholder="e.g., Lunch, Coffee Break">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="startTime">Start Time</label>
+                        <input type="time" id="startTime">
+                    </div>
+                    <div class="form-group">
+                        <label for="endTime">End Time</label>
+                        <input type="time" id="endTime">
+                    </div>
+                </div>
+                <button id="addBreakBtn" class="btn btn-primary">Add Break</button>
+                <div id="breakMessage" class="message" style="display: none; margin-top: 10px;"></div>
+
+                <div id="breaksList" style="margin-top: 20px;"></div>
+            </div>
+
+            <!-- Logout -->
+            <div class="section">
+                <button id="logoutBtn" class="btn btn-secondary">Logout</button>
+                <a href="index.html" class="btn btn-secondary" style="display: inline-block; margin-left: 10px;">View Status</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        const token = localStorage.getItem('token');
+
+        if (!token) {
+            window.location.href = 'login.html';
+        }
+
+        // Mark at work
+        document.getElementById('atWorkBtn').addEventListener('click', async () => {
+            await updateStatus(true);
+        });
+
+        // Mark not at work
+        document.getElementById('notAtWorkBtn').addEventListener('click', async () => {
+            await updateStatus(false);
+        });
+
+        async function updateStatus(isAtWork) {
+            try {
+                const response = await fetch('/api/status', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ isAtWork })
+                });
+
+                if (response.ok) {
+                    document.getElementById('statusMessage').textContent = 
+                        `Status updated: ${isAtWork ? 'AT WORK' : 'NOT AT WORK'}`;
+                } else {
+                    document.getElementById('statusMessage').textContent = 'Error updating status';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        // Add break
+        document.getElementById('addBreakBtn').addEventListener('click', async () => {
+            const breakName = document.getElementById('breakName').value;
+            const startTime = document.getElementById('startTime').value;
+            const endTime = document.getElementById('endTime').value;
+            const messageDiv = document.getElementById('breakMessage');
+
+            if (!breakName || !startTime || !endTime) {
+                messageDiv.className = 'message error';
+                messageDiv.textContent = 'Please fill in all fields';
+                messageDiv.style.display = 'block';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/breaks', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        breakName,
+                        startTime,
+                        endTime
+                    })
+                });
+
+                if (response.ok) {
+                    messageDiv.className = 'message success';
+                    messageDiv.textContent = 'Break added successfully!';
+                    messageDiv.style.display = 'block';
+
+                    // Clear form
+                    document.getElementById('breakName').value = '';
+                    document.getElementById('startTime').value = '';
+                    document.getElementById('endTime').value = '';
+
+                    // Reload breaks list
+                    loadBreaks();
+                } else {
+                    messageDiv.className = 'message error';
+                    messageDiv.textContent = 'Error adding break';
+                    messageDiv.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        });
+
+        // Load breaks
+        async function loadBreaks() {
+            try {
+                const response = await fetch('/api/breaks', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const breaks = await response.json();
+                    const breaksList = document.getElementById('breaksList');
+
+                    if (breaks.length === 0) {
+                        breaksList.innerHTML = '<p style="color: #999;">No breaks configured yet</p>';
+                        return;
+                    }
+
+                    breaksList.innerHTML = '<h3>Configured Breaks:</h3>';
+                    const list = document.createElement('ul');
+                    list.className = 'breaks-list';
+
+                    breaks.forEach(b => {
+                        const li = document.createElement('li');
+                        li.className = b.is_active ? 'active' : 'inactive';
+                        li.innerHTML = `
+                            <span>${b.break_name}: ${b.start_time} - ${b.end_time}</span>
+                            <button class="btn-small" onclick="deleteBreak(${b.id})">Delete</button>
+                        `;
+                        list.appendChild(li);
+                    });
+
+                    breaksList.appendChild(list);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        async function deleteBreak(id) {
+            if (confirm('Delete this break?')) {
+                try {
+                    await fetch(`/api/breaks/${id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    loadBreaks();
+                } catch (error) {
+                    console.error('Error:', error);
+                }
+            }
+        }
+
+        // Logout
+        document.getElementById('logoutBtn').addEventListener('click', () => {
+            localStorage.removeItem('token');
+            window.location.href = 'index.html';
+        });
+
+        // Load breaks on page load
+        loadBreaks();
+    </script>
+</body>
+</html>
