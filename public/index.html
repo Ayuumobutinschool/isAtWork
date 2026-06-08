@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Is At Work?</title>
+    <title>Is At Work? - No Backend Required</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -11,56 +11,237 @@
         <div class="status-card">
             <h1>Work Status</h1>
             <div id="statusContainer" class="loading">
-                <p>Loading...</p>
+                <div class="status-badge at-work">✓ AT WORK</div>
             </div>
-            <div id="details" class="details" style="display: none;">
-                <p id="lastUpdated"></p>
-                <p id="username"></p>
+            <div class="details">
+                <p id="currentStatus">Status: Loading...</p>
+                <p id="lastUpdated">Last updated: Just now</p>
             </div>
-            <div class="actions">
-                <a href="login.html" class="btn btn-primary">Login</a>
-                <a href="dashboard.html" class="btn btn-secondary">Dashboard</a>
+
+            <!-- Login Section -->
+            <div class="section" id="loginSection">
+                <h2>Your Control Panel</h2>
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" placeholder="Enter your name">
+                </div>
+                <button onclick="login()" class="btn btn-primary">Login</button>
+            </div>
+
+            <!-- Dashboard Section (Hidden by default) -->
+            <div class="section" id="dashboardSection" style="display: none;">
+                <h2>Dashboard</h2>
+                <div class="status-controls">
+                    <button onclick="setAtWork()" class="btn btn-success">Mark At Work</button>
+                    <button onclick="setNotAtWork()" class="btn btn-danger">Mark Not At Work</button>
+                </div>
+
+                <div style="margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
+                    <h3>Scheduled Breaks</h3>
+                    <div class="form-group">
+                        <label for="breakName">Break Name</label>
+                        <input type="text" id="breakName" placeholder="e.g., Lunch">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="startTime">Start Time</label>
+                            <input type="time" id="startTime">
+                        </div>
+                        <div class="form-group">
+                            <label for="endTime">End Time</label>
+                            <input type="time" id="endTime">
+                        </div>
+                    </div>
+                    <button onclick="addBreak()" class="btn btn-primary">Add Break</button>
+                </div>
+
+                <div id="breaksList" style="margin-top: 20px;"></div>
+
+                <button onclick="logout()" class="btn btn-secondary" style="margin-top: 20px; width: 100%;">Logout</button>
             </div>
         </div>
     </div>
 
-    <script src="app.js"></script>
     <script>
-        // Load status on page load
-        loadStatus();
+        // ==================== STORAGE ====================
+        const STORAGE_KEY = 'isAtWork_data';
 
-        // Refresh status every 10 seconds
-        setInterval(loadStatus, 10000);
-
-        function loadStatus() {
-            fetch('/api/status')
-                .then(response => response.json())
-                .then(data => {
-                    const container = document.getElementById('statusContainer');
-                    const details = document.getElementById('details');
-                    const lastUpdated = document.getElementById('lastUpdated');
-                    const username = document.getElementById('username');
-
-                    if (data.isAtWork && !data.onBreak) {
-                        container.className = 'status at-work';
-                        container.innerHTML = '<div class="status-badge at-work">✓ AT WORK</div>';
-                    } else if (data.onBreak) {
-                        container.className = 'status on-break';
-                        container.innerHTML = '<div class="status-badge on-break">☕ ON BREAK</div>';
-                    } else {
-                        container.className = 'status not-at-work';
-                        container.innerHTML = '<div class="status-badge not-at-work">✗ NOT AT WORK</div>';
-                    }
-
-                    lastUpdated.textContent = `Last updated: ${new Date(data.updatedAt).toLocaleString()}`;
-                    username.textContent = `User: ${data.username}`;
-                    details.style.display = 'block';
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    document.getElementById('statusContainer').innerHTML = '<p class="error">Error loading status</p>';
-                });
+        function getStorage() {
+            const data = localStorage.getItem(STORAGE_KEY);
+            return data ? JSON.parse(data) : {
+                username: null,
+                isAtWork: true,
+                breaks: [],
+                lastUpdated: new Date().toLocaleString()
+            };
         }
+
+        function saveStorage(data) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+            updateDisplay();
+        }
+
+        // ==================== LOGIN/LOGOUT ====================
+        function login() {
+            const username = document.getElementById('username').value.trim();
+            if (!username) {
+                alert('Please enter a username');
+                return;
+            }
+
+            const data = getStorage();
+            data.username = username;
+            saveStorage(data);
+
+            document.getElementById('loginSection').style.display = 'none';
+            document.getElementById('dashboardSection').style.display = 'block';
+        }
+
+        function logout() {
+            document.getElementById('loginSection').style.display = 'block';
+            document.getElementById('dashboardSection').style.display = 'none';
+            document.getElementById('username').value = '';
+
+            const data = getStorage();
+            data.username = null;
+            saveStorage(data);
+        }
+
+        // ==================== STATUS ====================
+        function setAtWork() {
+            const data = getStorage();
+            data.isAtWork = true;
+            data.lastUpdated = new Date().toLocaleString();
+            saveStorage(data);
+            alert('Status updated: AT WORK');
+        }
+
+        function setNotAtWork() {
+            const data = getStorage();
+            data.isAtWork = false;
+            data.lastUpdated = new Date().toLocaleString();
+            saveStorage(data);
+            alert('Status updated: NOT AT WORK');
+        }
+
+        // ==================== BREAKS ====================
+        function addBreak() {
+            const breakName = document.getElementById('breakName').value.trim();
+            const startTime = document.getElementById('startTime').value;
+            const endTime = document.getElementById('endTime').value;
+
+            if (!breakName || !startTime || !endTime) {
+                alert('Please fill in all fields');
+                return;
+            }
+
+            if (startTime >= endTime) {
+                alert('End time must be after start time');
+                return;
+            }
+
+            const data = getStorage();
+            const newBreak = {
+                id: Date.now(),
+                name: breakName,
+                start: startTime,
+                end: endTime
+            };
+
+            data.breaks.push(newBreak);
+            saveStorage(data);
+
+            document.getElementById('breakName').value = '';
+            document.getElementById('startTime').value = '';
+            document.getElementById('endTime').value = '';
+
+            alert('Break added!');
+        }
+
+        function deleteBreak(id) {
+            if (!confirm('Delete this break?')) return;
+
+            const data = getStorage();
+            data.breaks = data.breaks.filter(b => b.id !== id);
+            saveStorage(data);
+        }
+
+        function displayBreaks() {
+            const data = getStorage();
+            const list = document.getElementById('breaksList');
+
+            if (data.breaks.length === 0) {
+                list.innerHTML = '<p style="color: #999;">No breaks scheduled yet</p>';
+                return;
+            }
+
+            list.innerHTML = '<h3>Your Breaks:</h3><ul class="breaks-list">' +
+                data.breaks.map(b => `
+                    <li>
+                        <span><strong>${b.name}:</strong> ${b.start} - ${b.end}</span>
+                        <button class="btn-small" onclick="deleteBreak(${b.id})">Delete</button>
+                    </li>
+                `).join('') + '</ul>';
+        }
+
+        // ==================== DISPLAY ====================
+        function isCurrentlyOnBreak() {
+            const data = getStorage();
+            if (!data.isAtWork) return false;
+
+            const now = new Date();
+            const currentTime = now.getHours().toString().padStart(2, '0') + ':' +
+                               now.getMinutes().toString().padStart(2, '0');
+
+            return data.breaks.some(b => currentTime >= b.start && currentTime <= b.end);
+        }
+
+        function updateDisplay() {
+            const data = getStorage();
+            const container = document.getElementById('statusContainer');
+            const currentStatus = document.getElementById('currentStatus');
+            const lastUpdated = document.getElementById('lastUpdated');
+
+            // Update login/dashboard visibility
+            if (data.username) {
+                document.getElementById('loginSection').style.display = 'none';
+                document.getElementById('dashboardSection').style.display = 'block';
+                document.getElementById('username').value = data.username;
+                displayBreaks();
+            } else {
+                document.getElementById('loginSection').style.display = 'block';
+                document.getElementById('dashboardSection').style.display = 'none';
+            }
+
+            // Update status display
+            const onBreak = isCurrentlyOnBreak();
+            let status = '';
+            let badge = '';
+
+            if (data.isAtWork && !onBreak) {
+                container.className = 'status at-work';
+                status = 'AT WORK ✓';
+                badge = '<div class="status-badge at-work">✓ AT WORK</div>';
+            } else if (data.isAtWork && onBreak) {
+                container.className = 'status on-break';
+                status = 'ON BREAK ☕';
+                badge = '<div class="status-badge on-break">☕ ON BREAK</div>';
+            } else {
+                container.className = 'status not-at-work';
+                status = 'NOT AT WORK ✗';
+                badge = '<div class="status-badge not-at-work">✗ NOT AT WORK</div>';
+            }
+
+            container.innerHTML = badge;
+            currentStatus.textContent = `Status: ${status}`;
+            lastUpdated.textContent = `Last updated: ${data.lastUpdated}`;
+        }
+
+        // ==================== INIT ====================
+        updateDisplay();
+
+        // Refresh display every 10 seconds to check breaks
+        setInterval(updateDisplay, 10000);
     </script>
 </body>
 </html>
